@@ -206,20 +206,6 @@
 
       document.getElementById('formSection').innerHTML = formHTML;
       document.getElementById('listSection').innerHTML = listHTML;
-
-      if (activeTab === 'activities') {
-        document.getElementById('activityForm')?.addEventListener('submit', e => {
-          e.preventDefault();
-          addActivity();
-        });
-      }
-
-      if (activeTab === 'maintenances') {
-        document.getElementById('maintenanceForm')?.addEventListener('submit', e => {
-          e.preventDefault();
-          addMaintenance();
-        });
-      }
     }
 
     function addActivity() {
@@ -267,16 +253,6 @@
       authenticated = false;
       page = 'login';
       render();
-    }
-
-    function render() {
-      if (!authenticated) {
-        renderLogin();
-      } else if (page === 'dashboard') {
-        renderDashboard();
-      } else if (page === 'addVehicle') {
-        renderAddVehicleForm();
-      }
     }
 
     function exportToPDF() {
@@ -331,6 +307,16 @@
       link.click();
     }
 
+    function render() {
+      if (!authenticated) {
+        renderLogin();
+      } else if (page === 'dashboard') {
+        renderDashboard();
+      } else if (page === 'addVehicle') {
+        renderAddVehicleForm();
+      }
+    }
+
     window.selectVehicle = selectVehicle;
     window.setTab = setTab;
     window.logout = logout;
@@ -340,7 +326,7 @@
     window.addActivity = addActivity;
     window.addMaintenance = addMaintenance;
 
-    // Inicializa o sistema
+    // Garante que o sistema inicie
     render();
   </script>
 </body>
