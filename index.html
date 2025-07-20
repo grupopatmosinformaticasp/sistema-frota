@@ -206,6 +206,20 @@
 
       document.getElementById('formSection').innerHTML = formHTML;
       document.getElementById('listSection').innerHTML = listHTML;
+
+      if (activeTab === 'activities') {
+        document.getElementById('activityForm')?.addEventListener('submit', e => {
+          e.preventDefault();
+          addActivity();
+        });
+      }
+
+      if (activeTab === 'maintenances') {
+        document.getElementById('maintenanceForm')?.addEventListener('submit', e => {
+          e.preventDefault();
+          addMaintenance();
+        });
+      }
     }
 
     function addActivity() {
@@ -246,12 +260,6 @@
 
       vehicles = updated;
       saveData();
-      render();
-    }
-
-    function logout() {
-      authenticated = false;
-      page = 'login';
       render();
     }
 
@@ -326,7 +334,7 @@
     window.addActivity = addActivity;
     window.addMaintenance = addMaintenance;
 
-    // Garante que o sistema inicie
+    // Inicializa
     render();
   </script>
 </body>
