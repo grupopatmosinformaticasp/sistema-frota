@@ -6,8 +6,13 @@
   <title>Sistema de Frota</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js "></script>
   <script src="https://cdn.tailwindcss.com "></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+  </style>
 </head>
-<body class="bg-gray-100 p-4 font-sans">
+<body class="bg-gray-100 p-4">
 
   <div id="app" class="max-w-6xl mx-auto"></div>
 
@@ -40,13 +45,16 @@
     }
 
     function handleLogin() {
-      password = document.getElementById('password').value;
-      if (password === '1234') {
+      const input = document.getElementById('password');
+      const typedPassword = input.value.trim();
+
+      if (typedPassword === '1234') {
         authenticated = true;
         page = 'dashboard';
         render();
       } else {
         alert('Senha incorreta!');
+        input.focus();
       }
     }
 
@@ -111,6 +119,49 @@
       render();
     }
 
+    function logout() {
+      authenticated = false;
+      page = 'login';
+      render();
+    }
+
+    function renderAddVehicleForm() {
+      document.getElementById('app').innerHTML = `
+        <div class="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+          <div class="bg-white p-6 rounded shadow-md w-full max-w-md">
+            <h2 class="text-xl font-bold mb-4">Adicionar Veículo</h2>
+            <form id="addVehicleForm" class="space-y-2">
+              <input type="text" id="plate" placeholder="Placa" class="w-full p-2 border rounded" required />
+              <input type="text" id="model" placeholder="Modelo" class="w-full p-2 border rounded" required />
+              <input type="text" id="brand" placeholder="Marca" class="w-full p-2 border rounded" required />
+              <input type="number" id="year" placeholder="Ano" class="w-full p-2 border rounded" required />
+              <div class="flex justify-between mt-4">
+                <button type="button" onclick="page = 'dashboard'; render();" class="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500">Voltar</button>
+                <button type="button" onclick="addVehicle()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function addVehicle() {
+      const plate = document.getElementById('plate').value.trim();
+      const model = document.getElementById('model').value.trim();
+      const brand = document.getElementById('brand').value.trim();
+      const year = document.getElementById('year').value.trim();
+
+      if (!plate || !model || !brand || !year) {
+        alert('Preencha todos os campos!');
+        return;
+      }
+
+      vehicles.push({ plate, model, brand, year, activities: [], maintenances: [] });
+      saveData();
+      page = 'dashboard';
+      render();
+    }
+
     function renderFormAndList() {
       const vehicle = selectedVehicle;
 
@@ -121,7 +172,7 @@
             <input type="number" id="activityKm" placeholder="Quilometragem" class="p-2 border rounded" required />
           </div>
           <textarea id="activityDesc" placeholder="Descrição da atividade..." class="w-full p-2 mt-2 border rounded" required></textarea>
-          <button type="submit" class="mt-2 bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700">Adicionar Atividade</button>
+          <button type="button" onclick="addActivity()" class="mt-2 bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700">Adicionar Atividade</button>
         </form>
       ` : `
         <form id="maintenanceForm" class="mb-4">
@@ -131,7 +182,7 @@
           </div>
           <input type="number" id="maintenanceCost" placeholder="Valor (R$)" class="w-full p-2 mt-2 border rounded" required />
           <textarea id="maintenanceDesc" placeholder="Descrição da manutenção..." class="w-full p-2 mt-2 border rounded" required></textarea>
-          <button type="submit" class="mt-2 bg-yellow-600 text-white px-4 py-1 rounded hover:bg-yellow-700">Adicionar Manutenção</button>
+          <button type="button" onclick="addMaintenance()" class="mt-2 bg-yellow-600 text-white px-4 py-1 rounded hover:bg-yellow-700">Adicionar Manutenção</button>
         </form>
       `;
 
@@ -157,51 +208,59 @@
       document.getElementById('listSection').innerHTML = listHTML;
 
       if (activeTab === 'activities') {
-        document.getElementById('activityForm').onsubmit = (e) => {
+        document.getElementById('activityForm')?.addEventListener('submit', e => {
           e.preventDefault();
-          const date = document.getElementById('activityDate').value;
-          const desc = document.getElementById('activityDesc').value;
-          const km = document.getElementById('activityKm').value;
-
-          if (!date || !desc || !km) {
-            alert('Preencha todos os campos!');
-            return;
-          }
-
-          const updated = vehicles.map(v => v.plate === selectedVehicle.plate ? {
-            ...v,
-            activities: [...v.activities, { date, description: desc, km }]
-          } : v);
-
-          vehicles = updated;
-          saveData();
-          render();
-        };
+          addActivity();
+        });
       }
 
       if (activeTab === 'maintenances') {
-        document.getElementById('maintenanceForm').onsubmit = (e) => {
+        document.getElementById('maintenanceForm')?.addEventListener('submit', e => {
           e.preventDefault();
-          const date = document.getElementById('maintenanceDate').value;
-          const type = document.getElementById('maintenanceType').value;
-          const cost = document.getElementById('maintenanceCost').value;
-          const desc = document.getElementById('maintenanceDesc').value;
-
-          if (!date || !type || !desc || !cost) {
-            alert('Preencha todos os campos!');
-            return;
-          }
-
-          const updated = vehicles.map(v => v.plate === selectedVehicle.plate ? {
-            ...v,
-            maintenances: [...v.maintenances, { date, type, description: desc, cost }]
-          } : v);
-
-          vehicles = updated;
-          saveData();
-          render();
-        };
+          addMaintenance();
+        });
       }
+    }
+
+    function addActivity() {
+      const date = document.getElementById('activityDate').value;
+      const desc = document.getElementById('activityDesc').value;
+      const km = document.getElementById('activityKm').value;
+
+      if (!date || !desc || !km) {
+        alert('Preencha todos os campos!');
+        return;
+      }
+
+      const updated = vehicles.map(v => v.plate === selectedVehicle.plate ? {
+        ...v,
+        activities: [...v.activities, { date, description: desc, km }]
+      } : v);
+
+      vehicles = updated;
+      saveData();
+      render();
+    }
+
+    function addMaintenance() {
+      const date = document.getElementById('maintenanceDate').value;
+      const type = document.getElementById('maintenanceType').value;
+      const cost = document.getElementById('maintenanceCost').value;
+      const desc = document.getElementById('maintenanceDesc').value;
+
+      if (!date || !type || !desc || !cost) {
+        alert('Preencha todos os campos!');
+        return;
+      }
+
+      const updated = vehicles.map(v => v.plate === selectedVehicle.plate ? {
+        ...v,
+        maintenances: [...v.maintenances, { date, type, description: desc, cost }]
+      } : v);
+
+      vehicles = updated;
+      saveData();
+      render();
     }
 
     function logout() {
@@ -210,42 +269,14 @@
       render();
     }
 
-    function renderAddVehicleForm() {
-      document.getElementById('app').innerHTML = `
-        <div class="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-          <div class="bg-white p-6 rounded shadow-md w-full max-w-md">
-            <h2 class="text-xl font-bold mb-4">Adicionar Veículo</h2>
-            <form id="addVehicleForm" class="space-y-2">
-              <input type="text" id="plate" placeholder="Placa" class="w-full p-2 border rounded" required />
-              <input type="text" id="model" placeholder="Modelo" class="w-full p-2 border rounded" required />
-              <input type="text" id="brand" placeholder="Marca" class="w-full p-2 border rounded" required />
-              <input type="number" id="year" placeholder="Ano" class="w-full p-2 border rounded" required />
-              <div class="flex justify-between mt-4">
-                <button type="button" onclick="page = 'dashboard'; render();" class="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500">Voltar</button>
-                <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Salvar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      `;
-
-      document.getElementById('addVehicleForm').onsubmit = (e) => {
-        e.preventDefault();
-        const plate = document.getElementById('plate').value;
-        const model = document.getElementById('model').value;
-        const brand = document.getElementById('brand').value;
-        const year = document.getElementById('year').value;
-
-        if (!plate || !model || !brand || !year) {
-          alert('Preencha todos os campos!');
-          return;
-        }
-
-        vehicles.push({ plate, model, brand, year, activities: [], maintenances: [] });
-        saveData();
-        page = 'dashboard';
-        render();
-      };
+    function render() {
+      if (!authenticated) {
+        renderLogin();
+      } else if (page === 'dashboard') {
+        renderDashboard();
+      } else if (page === 'addVehicle') {
+        renderAddVehicleForm();
+      }
     }
 
     function exportToPDF() {
@@ -300,26 +331,17 @@
       link.click();
     }
 
-    function render() {
-      if (!authenticated) {
-        renderLogin();
-      } else if (page === 'dashboard') {
-        renderDashboard();
-      } else if (page === 'addVehicle') {
-        renderAddVehicleForm();
-      }
-    }
-
     window.selectVehicle = selectVehicle;
     window.setTab = setTab;
     window.logout = logout;
     window.exportToPDF = exportToPDF;
     window.exportToCSV = exportToCSV;
     window.exportToJSON = exportToJSON;
+    window.addActivity = addActivity;
+    window.addMaintenance = addMaintenance;
 
-    // Inicializa
+    // Inicializa o sistema
     render();
   </script>
-
 </body>
 </html>
