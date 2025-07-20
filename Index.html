@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sistema de Frota</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js "></script>
+  <script src="https://cdn.tailwindcss.com "></script>
+</head>
+<body class="bg-gray-100 p-4 font-sans">
+
+  <div id="app" class="max-w-6xl mx-auto"></div>
+
+  <script type="module">
+    let password = '';
+    let authenticated = false;
+    let vehicles = JSON.parse(localStorage.getItem('fleetData') || '[]');
+    let selectedVehicle = null;
+    let newVehicle = { plate: '', model: '', brand: '', year: '' };
+    let newActivity = { date: '', description: '', km: '' };
+    let newMaintenance = { date: '', type: '', description: '', cost: '' };
+    let page = 'login';
+    let activeTab = 'activities';
+
+    function saveData() {
+      localStorage.setItem('fleetData', JSON.stringify(vehicles));
+    }
+
+    function renderLogin() {
+      const html = `
+        <div class="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+          <div class="bg-white p-6 rounded shadow-md w-full max-w-md">
+            <h1 class="text-2xl font-bold mb-4 text-center">Login</h1>
+            <input type="password" id="password" placeholder="Senha" class="w-full p-2 border rounded mb-4" required />
+            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Entrar</button>
+          </div>
+        </div>
+      `;
+      document.getElementById('app').innerHTML = html;
+    }
+
+    function handleLogin() {
+      password = document.getElementById('password').value;
+      if (password === '1234') {
+        authenticated = true;
+        page = 'dashboard';
+        render();
+      } else {
+        alert('Senha incorreta!');
+      }
+    }
+
+    function renderDashboard() {
+      const vehicleList = vehicles.map(v => `
+        <li onclick="selectVehicle('${v.plate}')" class="cursor-pointer p-2 rounded hover:bg-gray-100">
+          ${v.model} - ${v.plate}
+        </li>
+      `).join('');
+
+      const vehicleDetails = selectedVehicle ? `
+        <div class="md:col-span-2 bg-white p-4 rounded shadow">
+          <h2 class="text-xl font-semibold mb-4">Ficha do Veículo: ${selectedVehicle.plate}</h2>
+          
+          <div class="mb-4 border-b flex space-x-4">
+            <button onclick="setTab('activities')" class="${activeTab === 'activities' ? 'border-b-2 border-blue-500' : ''}">Atividades</button>
+            <button onclick="setTab('maintenances')" class="${activeTab === 'maintenances' ? 'border-b-2 border-blue-500' : ''}">Manutenções</button>
+          </div>
+
+          <div id="formSection"></div>
+          <div id="listSection"></div>
+
+          <div class="mt-4 flex gap-2">
+            <button onclick="exportToPDF()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">📄 PDF</button>
+            <button onclick="exportToCSV()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">📤 CSV</button>
+            <button onclick="exportToJSON()" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">📥 JSON</button>
+          </div>
+        </div>
+      ` : '';
+
+      const html = `
+        <header class="flex justify-between items-center mb-6">
+          <h1 class="text-2xl font-bold text-gray-800">Sistema de Frota</h1>
+          <button onclick="logout()" class="text-red-500 hover:underline">Sair</button>
+        </header>
+
+        <main class="grid md:grid-cols-3 gap-6">
+          <div class="bg-white p-4 rounded shadow">
+            <h2 class="text-xl font-semibold mb-2">Veículos</h2>
+            <ul class="space-y-2">${vehicleList}</ul>
+            <button onclick="page = 'addVehicle'; render();" class="mt-4 w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">+ Adicionar Veículo</button>
+          </div>
+          ${vehicleDetails}
+        </main>
+      `;
+
+      document.getElementById('app').innerHTML = html;
+
+      if (selectedVehicle) {
+        renderFormAndList();
+      }
+    }
+
+    function selectVehicle(plate) {
+      selectedVehicle = vehicles.find(v => v.plate === plate);
+      activeTab = 'activities';
+      render();
+    }
+
+    function setTab(tab) {
+      activeTab = tab;
+      render();
+    }
+
+    function renderFormAndList() {
+      const vehicle = selectedVehicle;
+
+      const formHTML = activeTab === 'activities' ? `
+        <form id="activityForm" class="mb-4">
+          <div class="grid grid-cols-2 gap-4">
+            <input type="date" id="activityDate" class="p-2 border rounded" required />
+            <input type="number" id="activityKm" placeholder="Quilometragem" class="p-2 border rounded" required />
+          </div>
+          <textarea id="activityDesc" placeholder="Descrição da atividade..." class="w-full p-2 mt-2 border rounded" required></textarea>
+          <button type="submit" class="mt-2 bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700">Adicionar Atividade</button>
+        </form>
+      ` : `
+        <form id="maintenanceForm" class="mb-4">
+          <div class="grid grid-cols-2 gap-4">
+            <input type="date" id="maintenanceDate" class="p-2 border rounded" required />
+            <input type="text" id="maintenanceType" placeholder="Tipo (Ex: Preventiva)" class="p-2 border rounded" required />
+          </div>
+          <input type="number" id="maintenanceCost" placeholder="Valor (R$)" class="w-full p-2 mt-2 border rounded" required />
+          <textarea id="maintenanceDesc" placeholder="Descrição da manutenção..." class="w-full p-2 mt-2 border rounded" required></textarea>
+          <button type="submit" class="mt-2 bg-yellow-600 text-white px-4 py-1 rounded hover:bg-yellow-700">Adicionar Manutenção</button>
+        </form>
+      `;
+
+      const listHTML = activeTab === 'activities' ? `
+        <ul class="space-y-2">
+          ${vehicle.activities.map(act => `
+            <li class="text-sm bg-gray-50 p-2 rounded">
+              <strong>${act.date}</strong> - KM: ${act.km} - ${act.description}
+            </li>
+          `).join('')}
+        </ul>
+      ` : `
+        <ul class="space-y-2">
+          ${vehicle.maintenances.map(m => `
+            <li class="text-sm bg-gray-50 p-2 rounded">
+              <strong>${m.date}</strong> - ${m.type} - R$ ${m.cost} - ${m.description}
+            </li>
+          `).join('')}
+        </ul>
+      `;
+
+      document.getElementById('formSection').innerHTML = formHTML;
+      document.getElementById('listSection').innerHTML = listHTML;
+
+      if (activeTab === 'activities') {
+        document.getElementById('activityForm').onsubmit = (e) => {
+          e.preventDefault();
+          const date = document.getElementById('activityDate').value;
+          const desc = document.getElementById('activityDesc').value;
+          const km = document.getElementById('activityKm').value;
+
+          if (!date || !desc || !km) {
+            alert('Preencha todos os campos!');
+            return;
+          }
+
+          const updated = vehicles.map(v => v.plate === selectedVehicle.plate ? {
+            ...v,
+            activities: [...v.activities, { date, description: desc, km }]
+          } : v);
+
+          vehicles = updated;
+          saveData();
+          render();
+        };
+      }
+
+      if (activeTab === 'maintenances') {
+        document.getElementById('maintenanceForm').onsubmit = (e) => {
+          e.preventDefault();
+          const date = document.getElementById('maintenanceDate').value;
+          const type = document.getElementById('maintenanceType').value;
+          const cost = document.getElementById('maintenanceCost').value;
+          const desc = document.getElementById('maintenanceDesc').value;
+
+          if (!date || !type || !desc || !cost) {
+            alert('Preencha todos os campos!');
+            return;
+          }
+
+          const updated = vehicles.map(v => v.plate === selectedVehicle.plate ? {
+            ...v,
+            maintenances: [...v.maintenances, { date, type, description: desc, cost }]
+          } : v);
+
+          vehicles = updated;
+          saveData();
+          render();
+        };
+      }
+    }
+
+    function logout() {
+      authenticated = false;
+      page = 'login';
+      render();
+    }
+
+    function renderAddVehicleForm() {
+      document.getElementById('app').innerHTML = `
+        <div class="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+          <div class="bg-white p-6 rounded shadow-md w-full max-w-md">
+            <h2 class="text-xl font-bold mb-4">Adicionar Veículo</h2>
+            <form id="addVehicleForm" class="space-y-2">
+              <input type="text" id="plate" placeholder="Placa" class="w-full p-2 border rounded" required />
+              <input type="text" id="model" placeholder="Modelo" class="w-full p-2 border rounded" required />
+              <input type="text" id="brand" placeholder="Marca" class="w-full p-2 border rounded" required />
+              <input type="number" id="year" placeholder="Ano" class="w-full p-2 border rounded" required />
+              <div class="flex justify-between mt-4">
+                <button type="button" onclick="page = 'dashboard'; render();" class="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500">Voltar</button>
+                <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('addVehicleForm').onsubmit = (e) => {
+        e.preventDefault();
+        const plate = document.getElementById('plate').value;
+        const model = document.getElementById('model').value;
+        const brand = document.getElementById('brand').value;
+        const year = document.getElementById('year').value;
+
+        if (!plate || !model || !brand || !year) {
+          alert('Preencha todos os campos!');
+          return;
+        }
+
+        vehicles.push({ plate, model, brand, year, activities: [], maintenances: [] });
+        saveData();
+        page = 'dashboard';
+        render();
+      };
+    }
+
+    function exportToPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(16);
+      doc.text('Ficha do Veículo - Placa: ' + selectedVehicle.plate, 10, 10);
+      doc.setFontSize(12);
+
+      let y = 20;
+
+      doc.text('Atividades:', 10, y);
+      y += 10;
+      selectedVehicle.activities.forEach(act => {
+        doc.text(act.date + ' | KM: ' + act.km + ' - ' + act.description, 15, y);
+        y += 7;
+      });
+
+      y += 10;
+      doc.text('Manutenções:', 10, y);
+      y += 10;
+      selectedVehicle.maintenances.forEach(m => {
+        doc.text(m.date + ' | ' + m.type + ' - R$ ' + m.cost + ' - ' + m.description, 15, y);
+        y += 7;
+      });
+
+      doc.save('ficha-' + selectedVehicle.plate + '.pdf');
+    }
+
+    function exportToCSV() {
+      let csv = 'Placa,Data,Descrição,Quilometragem\n';
+      selectedVehicle.activities.forEach(a => {
+        csv += [selectedVehicle.plate, a.date, a.description, a.km].join(',') + '\n';
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'atividades-' + selectedVehicle.plate + '.csv';
+      link.click();
+    }
+
+    function exportToJSON() {
+      const data = { vehicle: selectedVehicle };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'veiculo-' + selectedVehicle.plate + '.json';
+      link.click();
+    }
+
+    function render() {
+      if (!authenticated) {
+        renderLogin();
+      } else if (page === 'dashboard') {
+        renderDashboard();
+      } else if (page === 'addVehicle') {
+        renderAddVehicleForm();
+      }
+    }
+
+    window.selectVehicle = selectVehicle;
+    window.setTab = setTab;
+    window.logout = logout;
+    window.exportToPDF = exportToPDF;
+    window.exportToCSV = exportToCSV;
+    window.exportToJSON = exportToJSON;
+
+    // Inicializa
+    render();
+  </script>
+
+</body>
+</html>
